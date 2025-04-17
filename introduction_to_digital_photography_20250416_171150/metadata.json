@@ -1,0 +1,37 @@
+{
+  "topic": "Introduction to Digital Photography",
+  "created_at": "2025-04-16T17:14:41.793952",
+  "chapters": [
+    {
+      "title": "Understanding Your Camera:",
+      "file": "chapter_1_understanding_your_camera.md"
+    },
+    {
+      "title": "Composition and Framing:",
+      "file": "chapter_2_composition_and_framing.md"
+    },
+    {
+      "title": "Mastering Exposure:",
+      "file": "chapter_3_mastering_exposure.md"
+    },
+    {
+      "title": "Lighting and White Balance:",
+      "file": "chapter_4_lighting_and_white_balance.md"
+    },
+    {
+      "title": "Focusing and Sharpness:",
+      "file": "chapter_5_focusing_and_sharpness.md"
+    },
+    {
+      "title": "Post-Processing Basics:",
+      "file": "chapter_6_postprocessing_basics.md"
+    },
+    {
+      "title": "Sharing Your Photos:",
+      "file": "chapter_7_sharing_your_photos.md"
+    }
+  ],
+  "model": "gemini-1.5-pro",
+  "temperature": 0.7,
+  "top_p": 0.95
+}
