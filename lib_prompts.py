@@ -11,11 +11,14 @@ PROMPTS = {
     Create a detailed outline for a minibook on "{topic}".
     The outline should:
     1. Include a title for the minibook
-    2. Have 5-7 chapter titles. Number the chapters explicitly, starting from 1.
-    3. For each chapter, provide 3-5 bullet points highlighting key concepts
-    4. Add a chapter about history of the topic
-    5. Add a chapter about the relation of the topic to other topics
-    6. Format the output clearly with markdown
+    2. Have {num_chapters} chapter titles. 
+    Number the chapters explicitly, starting from 1.
+    3. For each chapter, provide 3-5 bullet points highlighting key concepts.
+    4. Add a chapter after the introduction about the history of the topic
+    5. Add a chapter about the relation of the topic to other topics or disciplines/theories.
+    6. Last chapter should be a conclusion with key takeaways.
+    7. Use a tables where needed to summarize and compare.
+    8. Format the output clearly with markdown. Use latex for formulas.
 
     The outline should be comprehensive but concise, covering the most important aspects of {topic}.
     """,

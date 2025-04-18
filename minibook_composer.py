@@ -8,20 +8,26 @@ import argparse
 import time
 from lib_prompts import PROMPTS
 
-#Set your key, set your topic, go!
+# Build your own minibook
+# Set your key, set your topic, go!
 
-# Default values
-DEFAULT_TOPIC = "An introduction to the FFT and DFT"
-ADDITIONAL_INSTRUCTIONS = "This should be an introductory and practical guide for computer science students and ml engineers"
-DEFAULT_API_KEY = os.environ.get('GOOGLE_API_KEY', 'AIzaSyCikXRo0qmngNr_L4ReLT3Vi4XPdpK2t2U')
-DEFAULT_MODEL = 'gemini-1.5-pro'
-DEFAULT_TEMPERATURE = 0.7
-DEFAULT_TOP_P = 0.95
+# User parameters
+TOPIC = "An introduction to Astrobiology"
+ADDITIONAL_INSTRUCTIONS = "" # Add additional instructions for the AI here
+NUM_CHAPTERS = 5
+CHAPTER_DELAY = 1  # Default wait time in seconds between chapter requests
+
+API_KEY = os.environ.get('GOOGLE_API_KEY', '')
+MODEL = 'gemini-2.5-flash-preview-04-17' #gemini-2.5-flash-preview-04-17, gemini-2.0-flash
+TEMPERATURE = 0.7
+TOP_P = 0.95
+PROJECT_FOLDER = "MyBooks"
+
 
 def setup_genai(api_key):
     """Initialize the Gemini API with the provided API key."""
     genai.configure(api_key=api_key)
-    return genai.GenerativeModel(DEFAULT_MODEL)
+    return genai.GenerativeModel(MODEL)
 
 def sanitize_filename(text, max_length=50):
     """Generate a safe filename from text."""
@@ -45,7 +51,13 @@ def create_project_folder(topic):
     """Create a project folder for the topic."""
     folder_name = sanitize_filename(topic)
     timestamp = datetime.now().strftime("%y%m%d_%H%M")
-    project_path = f"{folder_name}_{timestamp}"
+    project_name = f"{folder_name}_{timestamp}"
+    
+    # Ensure the base project folder exists
+    if not os.path.exists(PROJECT_FOLDER):
+        os.makedirs(PROJECT_FOLDER, exist_ok=True)
+
+    project_path = os.path.join(PROJECT_FOLDER, project_name)
     
     # Create project directory and subdirectories
     os.makedirs(project_path, exist_ok=True)
@@ -61,8 +73,8 @@ def ask_gemini(model, prompt, max_retries=3, retry_delay=3):
             response = model.generate_content(
                 prompt,
                 generation_config={
-                    "temperature": DEFAULT_TEMPERATURE,
-                    "top_p": DEFAULT_TOP_P,
+                    "temperature": TEMPERATURE,
+                    "top_p": TOP_P,
                     "response_mime_type": "text/plain",
                 }
             )
@@ -85,13 +97,13 @@ def save_to_file(content, filepath):
         f.write(content)
     print(f"Saved to {filepath}")
 
-def generate_book_outline_prompt(topic):
+def generate_book_outline_prompt(topic, num_chapters):
     """Generate the prompt for creating a book outline."""
-    return PROMPTS["outline"].format(topic=topic)
+    return PROMPTS["outline"].format(topic=topic, num_chapters=num_chapters)
 
-def generate_book_outline(model, topic, project_path):
+def generate_book_outline(model, topic, project_path, num_chapters):
     """Generate a book outline for the given topic."""
-    outline_prompt = generate_book_outline_prompt(topic)
+    outline_prompt = generate_book_outline_prompt(topic, num_chapters)
     
     outline = ask_gemini(model, outline_prompt)
     
@@ -194,7 +206,7 @@ def parse_chapters(outline):
     
     return chapters
 
-def elaborate_chapter(model, chapter, project_path, index):
+def elaborate_chapter(model, chapter, project_path, index, delay=CHAPTER_DELAY):
     """Generate detailed content for a chapter based on its outline."""
     chapter_title = chapter["title"]
     chapter_outline = chapter["outline"]
@@ -206,8 +218,9 @@ def elaborate_chapter(model, chapter, project_path, index):
     )
     
     # Add a delay before each API call to avoid rate limiting
-    print(f"Waiting 3 seconds before requesting content for Chapter {index+1}...")
-    time.sleep(3)
+    if delay > 0:
+        print(f"Waiting {delay} seconds before requesting content for Chapter {index+1}...")
+        time.sleep(delay)
     
     chapter_content = ask_gemini(model, prompt)
     
@@ -269,9 +282,9 @@ def save_metadata(topic, project_path, chapters):
         "topic": topic,
         "created_at": datetime.now().isoformat(),
         "chapters": [{"title": chapter["title"], "file": os.path.basename(chapter["file"])} for chapter in chapters],
-        "model": DEFAULT_MODEL,
-        "temperature": DEFAULT_TEMPERATURE,
-        "top_p": DEFAULT_TOP_P
+        "model": MODEL,
+        "temperature": TEMPERATURE,
+        "top_p": TOP_P
     }
     
     metadata_path = os.path.join(project_path, "metadata.json")
@@ -280,7 +293,7 @@ def save_metadata(topic, project_path, chapters):
     
     print(f"Metadata saved to {metadata_path}")
 
-def create_minibook(topic, api_key):
+def create_minibook(topic, api_key, num_chapters, chapter_delay=CHAPTER_DELAY):
     """Main function to create a minibook on the given topic."""
     if not api_key:
         raise ValueError("Please provide a Google API key either as an argument or by setting the GOOGLE_API_KEY environment variable.")
@@ -294,7 +307,7 @@ def create_minibook(topic, api_key):
     
     # Generate book outline
     print(f"Generating outline for: {topic}")
-    outline = generate_book_outline(model, topic, project_path)
+    outline = generate_book_outline(model, topic, project_path, num_chapters)
     
     # Parse chapters from outline
     chapters = parse_chapters(outline)
@@ -305,7 +318,7 @@ def create_minibook(topic, api_key):
     for i, chapter in enumerate(chapters):
         print(f"Elaborating on Chapter {i+1}: {chapter['title']}")
         try:
-            processed_chapter = elaborate_chapter(model, chapter, project_path, i)
+            processed_chapter = elaborate_chapter(model, chapter, project_path, i, chapter_delay)
             processed_chapters.append(processed_chapter)
         except Exception as e:
             print(f"Error processing chapter {i+1}: {str(e)}")
@@ -341,14 +354,18 @@ def create_minibook(topic, api_key):
 
 def main():
     parser = argparse.ArgumentParser(description='Create a minibook on a specified topic using AI.')
-    parser.add_argument('--topic', type=str, default=DEFAULT_TOPIC, 
-                        help=f'The topic for the minibook (default: "{DEFAULT_TOPIC}")')
-    parser.add_argument('--api-key', type=str, default=DEFAULT_API_KEY,
+    parser.add_argument('--topic', type=str, default=TOPIC, 
+                        help=f'The topic for the minibook (default: "{TOPIC}")')
+    parser.add_argument('--api-key', type=str, default=API_KEY,
                         help='Google API key (or set GOOGLE_API_KEY environment variable)')
+    parser.add_argument('--num-chapters', type=int, default=NUM_CHAPTERS,
+                        help=f'The suggested number of chapters to produce in the outline (default: {NUM_CHAPTERS})')
+    parser.add_argument('--chapter-delay', type=int, default=CHAPTER_DELAY,
+                        help=f'Wait time in seconds between chapter requests (default: {CHAPTER_DELAY})')
     
     args = parser.parse_args()
     
-    create_minibook(args.topic, args.api_key)
+    create_minibook(args.topic, args.api_key, args.num_chapters, args.chapter_delay)
 
 if __name__ == "__main__":
     main() 
