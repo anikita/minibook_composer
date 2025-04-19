@@ -1,16 +1,45 @@
+# User-specific configuration
+config.py
+
+# Project folders
+MyBooks/
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS specific files
+.DS_Store
+Thumbs.db
 
 # C extensions
 *.so
 
 # Distribution / packaging
 .Python
-MyBooks/
-build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -19,7 +48,6 @@ lib64/
 parts/
 sdist/
 var/
-*.egg-info/
 .installed.cfg
 *.egg
 
@@ -28,20 +56,12 @@ var/
 *.spec
 
 # Virtual environment
-env/
 venv/
 ENV/
-env.bak/
-venv.bak/
 
 # IDEs and editors
-.vscode/
-.idea/
 *.sublime-project
 *.sublime-workspace
-
-# Jupyter Notebook
-.ipynb_checkpoints
 
 # Others
 *.log 

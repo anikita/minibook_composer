@@ -6,23 +6,40 @@ import google.generativeai as genai
 from datetime import datetime
 import argparse
 import time
-from lib_prompts import PROMPTS
+from lib_prompts import PROMPTS, get_outline_prompt, INSTRUCTION_TEMPLATES, get_instruction_templates
+
+# Import user-specific configuration if available
+try:
+    from config import API_KEY, OUTPUT_FOLDER, PROJECT_FOLDER, MODEL, TEMPERATURE, TOP_P
+    print("Using configuration from config.py")
+except ImportError:
+    print("Config file not found. Using default configuration.")
+    # Default configuration if config.py is not available
+    API_KEY = os.environ.get('GOOGLE_API_KEY', '')
+    OUTPUT_FOLDER = os.path.join(os.path.expanduser("~"), "Documents/Minibooks")
+    PROJECT_FOLDER = "MyBooks"
+    MODEL = 'gemini-2.5-flash-preview-04-17'
+    TEMPERATURE = 0.7
+    TOP_P = 0.95
 
 # Build your own minibook
 # Set your key, set your topic, go!
 
 # User parameters
-TOPIC = "An introduction to Astrobiology"
-ADDITIONAL_INSTRUCTIONS = "" # Add additional instructions for the AI here
-NUM_CHAPTERS = 5
+TOPIC = "Storytelling in Science Education, a practical guide"
+
+# Default instruction templates to use when none are provided by command line
+SELECTED_INSTRUCTIONS = [ "key_terms","history", "future", ] # e.g ["history", "future"]
+
+# Add additional instructions for the AI here
+ADDITIONAL_INSTRUCTIONS = """
+-Explain different strategies and options around narrative structure
+-Make it a practical guide for advanced scientist and engineers to communicate complex concepts to non-technical audiences
+"""
+
+NUM_CHAPTERS = 'dynamic'  # Can be a number or 'dynamic' to calculate based on instructions
+BASE_CHAPTER_COUNT = 3    # Base number of chapters when using dynamic mode
 CHAPTER_DELAY = 1  # Default wait time in seconds between chapter requests
-
-API_KEY = os.environ.get('GOOGLE_API_KEY', '')
-MODEL = 'gemini-2.5-flash-preview-04-17' #gemini-2.5-flash-preview-04-17, gemini-2.0-flash
-TEMPERATURE = 0.7
-TOP_P = 0.95
-PROJECT_FOLDER = "MyBooks"
-
 
 def setup_genai(api_key):
     """Initialize the Gemini API with the provided API key."""
@@ -97,13 +114,76 @@ def save_to_file(content, filepath):
         f.write(content)
     print(f"Saved to {filepath}")
 
-def generate_book_outline_prompt(topic, num_chapters):
-    """Generate the prompt for creating a book outline."""
-    return PROMPTS["outline"].format(topic=topic, num_chapters=num_chapters)
+def calculate_dynamic_chapter_count(base_chapters, instructions):
+    """Calculate a dynamic chapter count based on instructions."""
+    # Default base chapter count
+    if isinstance(base_chapters, int):
+        chapter_count = base_chapters
+    else:
+        # Start with default base chapter count if not an integer
+        chapter_count = BASE_CHAPTER_COUNT
+    
+    # Count additional chapters from instructions
+    additional_chapters = 0
+    chapter_adding_instructions = [
+        "history", "key_terms", "interdisciplinary", "future", 
+        "applications", "controversies", "key_figures", "methodologies"
+    ]
+    
+    # Process list of instruction template keys
+    if isinstance(instructions, list):
+        for instruction in instructions:
+            if instruction in chapter_adding_instructions:
+                additional_chapters += 1
+    
+    # Process custom instruction string
+    elif isinstance(instructions, str):
+        # Count "add a chapter" phrases in custom instructions
+        add_chapter_count = instructions.lower().count("add a chapter")
+        additional_chapters += add_chapter_count
+    
+    # Ensure a reasonable minimum and maximum
+    total_chapters = max(3, min(15, chapter_count + additional_chapters))
+    return total_chapters
 
-def generate_book_outline(model, topic, project_path, num_chapters):
+def generate_book_outline_prompt(topic, num_chapters, additional_instructions=None, base_chapters=BASE_CHAPTER_COUNT):
+    """Generate the prompt for creating a book outline with optional additional instructions."""
+    # Get the base outline prompt
+    outline_prompt = get_outline_prompt()
+    
+    # Determine the actual number of chapters to use
+    if num_chapters == 'dynamic':
+        actual_num_chapters = calculate_dynamic_chapter_count(base_chapters, additional_instructions)
+    else:
+        actual_num_chapters = num_chapters
+    
+    # Process additional instructions
+    if additional_instructions:
+        # If it's a string, use it directly
+        if isinstance(additional_instructions, str):
+            if additional_instructions.strip():
+                # Format nicely with newlines
+                formatted_instructions = "\n\nAdditional instructions:\n" + additional_instructions
+                outline_prompt += formatted_instructions
+        
+        # If it's a list of keys from INSTRUCTION_TEMPLATES
+        elif isinstance(additional_instructions, list):
+            if additional_instructions:
+                instructions_text = []
+                for key in additional_instructions:
+                    if key in INSTRUCTION_TEMPLATES:
+                        instructions_text.append("- " + INSTRUCTION_TEMPLATES[key])
+                
+                if instructions_text:
+                    formatted_instructions = "\n\nAdditional instructions:\n" + "\n".join(instructions_text)
+                    outline_prompt += formatted_instructions
+    
+    # Format the final prompt with topic and num_chapters
+    return outline_prompt.format(topic=topic, num_chapters=actual_num_chapters)
+
+def generate_book_outline(model, topic, project_path, num_chapters, additional_instructions=None, base_chapters=BASE_CHAPTER_COUNT):
     """Generate a book outline for the given topic."""
-    outline_prompt = generate_book_outline_prompt(topic, num_chapters)
+    outline_prompt = generate_book_outline_prompt(topic, num_chapters, additional_instructions, base_chapters)
     
     outline = ask_gemini(model, outline_prompt)
     
@@ -238,7 +318,7 @@ def elaborate_chapter(model, chapter, project_path, index, delay=CHAPTER_DELAY):
         "file": chapter_path
     }
 
-def merge_chapters(chapters, topic, project_path):
+def merge_chapters(chapters, topic, project_path, output_folder=None):
     """Merge all chapter contents into a single markdown file."""
     book_title = f"# Minibook: {topic}\n\n"
     toc = "## Table of Contents\n\n"
@@ -269,14 +349,31 @@ def merge_chapters(chapters, topic, project_path):
     # Create the final book filename
     safe_topic = sanitize_filename(topic)
     book_filename = f"minibook_{safe_topic}.md"
-    book_path = os.path.join(project_path, book_filename)
     
-    # Save the complete book
+    # Save the complete book in the project folder
+    book_path = os.path.join(project_path, book_filename)
     save_to_file(book_content, book_path)
+    
+    # Also save to output folder if specified
+    if output_folder:
+        # Ensure output folder exists
+        os.makedirs(output_folder, exist_ok=True)
+        
+        # Create a more descriptive filename with timestamp for the output folder
+        timestamp = datetime.now().strftime("%y%m%d_%H%M")
+        output_filename = f"minibook_{safe_topic}_{timestamp}.md"
+        output_path = os.path.join(output_folder, output_filename)
+        
+        # Save to output folder
+        save_to_file(book_content, output_path)
+        print(f"Final book also saved to: {output_path}")
+        
+        # Return both paths
+        return book_path, output_path
     
     return book_path
 
-def save_metadata(topic, project_path, chapters):
+def save_metadata(topic, project_path, chapters, outline_prompt=None, additional_instructions=None, num_chapters=None):
     """Save metadata about the project for future reference."""
     metadata = {
         "topic": topic,
@@ -284,8 +381,29 @@ def save_metadata(topic, project_path, chapters):
         "chapters": [{"title": chapter["title"], "file": os.path.basename(chapter["file"])} for chapter in chapters],
         "model": MODEL,
         "temperature": TEMPERATURE,
-        "top_p": TOP_P
+        "top_p": TOP_P,
+        "settings": {
+            "num_chapters": num_chapters or NUM_CHAPTERS,
+            "chapter_delay": CHAPTER_DELAY
+        }
     }
+    
+    # Include additional_instructions if available
+    if additional_instructions:
+        if isinstance(additional_instructions, list):
+            # Convert list of template keys to their actual instructions
+            instructions_text = []
+            for key in additional_instructions:
+                if key in INSTRUCTION_TEMPLATES:
+                    instructions_text.append(INSTRUCTION_TEMPLATES[key])
+            metadata["additional_instructions"] = instructions_text
+        else:
+            # String instructions
+            metadata["additional_instructions"] = additional_instructions
+    
+    # Include the outline prompt if available
+    if outline_prompt:
+        metadata["outline_prompt"] = outline_prompt
     
     metadata_path = os.path.join(project_path, "metadata.json")
     with open(metadata_path, 'w', encoding='utf-8') as f:
@@ -293,10 +411,23 @@ def save_metadata(topic, project_path, chapters):
     
     print(f"Metadata saved to {metadata_path}")
 
-def create_minibook(topic, api_key, num_chapters, chapter_delay=CHAPTER_DELAY):
+def create_minibook(topic, api_key, num_chapters, chapter_delay=CHAPTER_DELAY, 
+                    output_folder=OUTPUT_FOLDER, add_summary=True, additional_instructions=None, base_chapters=BASE_CHAPTER_COUNT):
     """Main function to create a minibook on the given topic."""
     if not api_key:
         raise ValueError("Please provide a Google API key either as an argument or by setting the GOOGLE_API_KEY environment variable.")
+    
+    # Handle 'dynamic' chapter count
+    if num_chapters == 'dynamic':
+        # The actual number will be calculated in generate_book_outline_prompt
+        actual_num_chapters = 'dynamic'
+    else:
+        # Try to convert to integer if it's a string representing a number
+        try:
+            actual_num_chapters = int(num_chapters)
+        except (ValueError, TypeError):
+            print(f"Warning: Invalid num_chapters value '{num_chapters}'. Using {base_chapters} as default.")
+            actual_num_chapters = base_chapters
     
     # Initialize Gemini model
     model = setup_genai(api_key)
@@ -307,7 +438,8 @@ def create_minibook(topic, api_key, num_chapters, chapter_delay=CHAPTER_DELAY):
     
     # Generate book outline
     print(f"Generating outline for: {topic}")
-    outline = generate_book_outline(model, topic, project_path, num_chapters)
+    outline_prompt = generate_book_outline_prompt(topic, actual_num_chapters, additional_instructions, base_chapters)
+    outline = generate_book_outline(model, topic, project_path, actual_num_chapters, additional_instructions, base_chapters)
     
     # Parse chapters from outline
     chapters = parse_chapters(outline)
@@ -336,14 +468,23 @@ def create_minibook(topic, api_key, num_chapters, chapter_delay=CHAPTER_DELAY):
     
     # Merge chapters into complete book
     print("Merging chapters into final book")
-    book_path = merge_chapters(processed_chapters, topic, project_path)
+    result = merge_chapters(processed_chapters, topic, project_path, output_folder)
+    
+    # Handle the different return types
+    if isinstance(result, tuple):
+        book_path, output_path = result
+    else:
+        book_path = result
+        output_path = None
     
     # Save project metadata
-    save_metadata(topic, project_path, processed_chapters)
+    save_metadata(topic, project_path, processed_chapters, outline_prompt, additional_instructions, actual_num_chapters)
     
     print(f"\nMinibook creation complete!")
     print(f"Project folder: {project_path}")
     print(f"Final book: {book_path}")
+    if output_path:
+        print(f"Output copy: {output_path}")
     
     return project_path, book_path
 
@@ -358,14 +499,35 @@ def main():
                         help=f'The topic for the minibook (default: "{TOPIC}")')
     parser.add_argument('--api-key', type=str, default=API_KEY,
                         help='Google API key (or set GOOGLE_API_KEY environment variable)')
-    parser.add_argument('--num-chapters', type=int, default=NUM_CHAPTERS,
-                        help=f'The suggested number of chapters to produce in the outline (default: {NUM_CHAPTERS})')
+    parser.add_argument('--num-chapters', default=NUM_CHAPTERS,
+                        help=f'The suggested number of chapters to produce in the outline (default: {NUM_CHAPTERS}). Can be a number or "dynamic"')
+    parser.add_argument('--base-chapters', type=int, default=BASE_CHAPTER_COUNT,
+                        help=f'Base number of chapters when using dynamic mode (default: {BASE_CHAPTER_COUNT})')
     parser.add_argument('--chapter-delay', type=int, default=CHAPTER_DELAY,
                         help=f'Wait time in seconds between chapter requests (default: {CHAPTER_DELAY})')
+    parser.add_argument('--output-folder', type=str, default=OUTPUT_FOLDER,
+                        help=f'Folder to store final markdown files (default: {OUTPUT_FOLDER})')
+    parser.add_argument('--no-summary', action='store_true',
+                        help='Skip generating a summary chapter')
+    parser.add_argument('--add-instructions', type=str, nargs='+', choices=list(INSTRUCTION_TEMPLATES.keys()),
+                        help='Add specific instruction templates to the outline prompt')
+    parser.add_argument('--custom-instructions', type=str,
+                        help='Add custom additional instructions for the outline prompt')
     
     args = parser.parse_args()
     
-    create_minibook(args.topic, args.api_key, args.num_chapters, args.chapter_delay)
+    # Determine which additional instructions to use
+    additional_instructions = None
+    if args.add_instructions:
+        additional_instructions = args.add_instructions
+    elif args.custom_instructions:
+        additional_instructions = args.custom_instructions
+    else:
+        # Use SELECTED_INSTRUCTIONS first if it's not empty, otherwise use ADDITIONAL_INSTRUCTIONS
+        additional_instructions = SELECTED_INSTRUCTIONS if SELECTED_INSTRUCTIONS else ADDITIONAL_INSTRUCTIONS
+    
+    create_minibook(args.topic, args.api_key, args.num_chapters, args.chapter_delay, 
+                    args.output_folder, not args.no_summary, additional_instructions, args.base_chapters)
 
 if __name__ == "__main__":
     main() 
