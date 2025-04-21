@@ -2,20 +2,25 @@ import os
 import re
 import json
 import shutil
+import sys
 import google.generativeai as genai
 from datetime import datetime
 import argparse
 import time
-from lib_prompts import PROMPTS, get_outline_prompt, INSTRUCTION_TEMPLATES, get_instruction_templates
+from lib_prompts import (
+    PROMPTS, get_outline_prompt, INSTRUCTION_TEMPLATES, get_instruction_templates,
+    NARRATIVE_STYLES, PEDAGOGICAL_APPROACHES, apply_style_and_approach,
+    get_available_styles, get_available_approaches
+)
 
 # Import user-specific configuration if available
 try:
-    from config import API_KEY, OUTPUT_FOLDER, PROJECT_FOLDER, MODEL, TEMPERATURE, TOP_P
+    from config import API_LLM_KEY, OUTPUT_FOLDER, PROJECT_FOLDER, MODEL, TEMPERATURE, TOP_P
     print("Using configuration from config.py")
 except ImportError:
     print("Config file not found. Using default configuration.")
     # Default configuration if config.py is not available
-    API_KEY = os.environ.get('GOOGLE_API_KEY', '')
+    API_LLM_KEY = os.environ.get('GOOGLE_API_KEY', '')
     OUTPUT_FOLDER = os.path.join(os.path.expanduser("~"), "Documents/Minibooks")
     PROJECT_FOLDER = "MyBooks"
     MODEL = 'gemini-2.5-flash-preview-04-17'
@@ -26,24 +31,41 @@ except ImportError:
 # Set your key, set your topic, go!
 
 # User parameters
-TOPIC = "Storytelling in Science Education, a practical guide"
+TOPIC = "Foundational Leadership Theories: A comparative analysis"
 
 # Default instruction templates to use when none are provided by command line
-SELECTED_INSTRUCTIONS = [ "key_terms","history", "future", ] # e.g ["history", "future"]
+SELECTED_OUTLINE_INSTRUCTIONS = ["conclusion", "formal_theories"] # Instructions for the outline generation
+SELECTED_CHAPTER_INSTRUCTIONS = ["summary_tables"] # Instructions for chapter generation
 
-# Add additional instructions for the AI here
-ADDITIONAL_INSTRUCTIONS = """
--Explain different strategies and options around narrative structure
--Make it a practical guide for advanced scientist and engineers to communicate complex concepts to non-technical audiences
+# Custom instructions that will ALWAYS be added alongside template instructions (only for outline)
+CUSTOM_INSTRUCTIONS = """ 
+Dedicate a whole chapter on every leadership theory.
+ 
+Great Man Theory: (Early 19th Century) - Asserts that leaders are born, not made, possessing innate heroic qualities and destined for leadership based on inherent traits often observed in historical figures.
+Trait Theory: (Early 20th Century) - Focuses on identifying specific inherent personal qualities or characteristics (e.g., intelligence, integrity, determination) that differentiate leaders from non-leaders.
+Behavioral Theory: (1940s-1950s) - Shifts focus from who leaders are to what they do; identifies specific, learnable behaviors associated with effective leadership (e.g., task-orientation vs. relationship-orientation).
+Contingency/Situational Theory: (1960s-1970s) - Proposes that effective leadership depends on matching a leader's style to the specific demands of the situation, followers, and environment; no single "best" style exists.
+Leader-Member Exchange (LMX) Theory: (1970s) - Focuses on the unique dyadic (two-way) relationship between a leader and each individual follower, suggesting leaders form different quality relationships (in-groups/out-groups) impacting outcomes.
+Power and Influence Theories: (Various points, prominent mid-20th Century) - Examines leadership based on the sources of a leader's power (e.g., legitimate, reward, expert, referent) and the tactics used to influence followers' attitudes and behaviors.
+Path-Goal Theory: (1970s - a specific Contingency theory) - Posits that leaders motivate followers by clarifying the 'path' to achieving goals and removing obstacles, adapting their style based on follower needs and task characteristics.
+Charismatic Leadership Theory: (1970s) - Centers on leaders who inspire followers through exceptional personal charm, vision, confidence, and conviction, often emerging during times of crisis or change.
+Transactional Leadership Theory: (1970s/1980s) - Describes leadership as an exchange process where leaders clarify expectations and use rewards or corrective actions (punishments) based on follower performance against set standards.
+Transformational Leadership Theory: (1980s) - Focuses on leaders who inspire and motivate followers to transcend self-interest, achieve extraordinary outcomes, and develop their own leadership potential through vision, inspiration, intellectual stimulation, and individualized support.
 """
 
+# Default narrative style and pedagogical approach
+NARRATIVE_STYLE = None  # e.g., "analogies", "character_driven", "problem_solution", "story_arc"
+PEDAGOGICAL_APPROACH = None  # e.g., "scaffolded", "socratic", "project_based", "spiral"
+
 NUM_CHAPTERS = 'dynamic'  # Can be a number or 'dynamic' to calculate based on instructions
-BASE_CHAPTER_COUNT = 3    # Base number of chapters when using dynamic mode
+BASE_CHAPTER_COUNT = 4    # Base number of chapters when using dynamic mode
 CHAPTER_DELAY = 1  # Default wait time in seconds between chapter requests
 
-def setup_genai(api_key):
+def setup_genai(api_llm_key):
     """Initialize the Gemini API with the provided API key."""
-    genai.configure(api_key=api_key)
+    if not api_llm_key:
+        raise ValueError("API_LLM_KEY is missing. Please set it in config.py or via GOOGLE_API_KEY environment variable.")
+    genai.configure(api_key=api_llm_key)
     return genai.GenerativeModel(MODEL)
 
 def sanitize_filename(text, max_length=50):
@@ -158,32 +180,45 @@ def generate_book_outline_prompt(topic, num_chapters, additional_instructions=No
         actual_num_chapters = num_chapters
     
     # Process additional instructions
+    formatted_instructions = ""
+    
+    # First, handle the templated instructions if provided
     if additional_instructions:
-        # If it's a string, use it directly
-        if isinstance(additional_instructions, str):
-            if additional_instructions.strip():
-                # Format nicely with newlines
-                formatted_instructions = "\n\nAdditional instructions:\n" + additional_instructions
-                outline_prompt += formatted_instructions
-        
         # If it's a list of keys from INSTRUCTION_TEMPLATES
-        elif isinstance(additional_instructions, list):
-            if additional_instructions:
-                instructions_text = []
-                for key in additional_instructions:
-                    if key in INSTRUCTION_TEMPLATES:
-                        instructions_text.append("- " + INSTRUCTION_TEMPLATES[key])
-                
-                if instructions_text:
-                    formatted_instructions = "\n\nAdditional instructions:\n" + "\n".join(instructions_text)
-                    outline_prompt += formatted_instructions
+        if isinstance(additional_instructions, list) and additional_instructions:
+            instructions_text = []
+            for key in additional_instructions:
+                if key in INSTRUCTION_TEMPLATES:
+                    instructions_text.append("- " + INSTRUCTION_TEMPLATES[key])
+            
+            if instructions_text:
+                formatted_instructions += "\n\nAdditional instructions:\n" + "\n".join(instructions_text)
+        
+        # If it's a string (from command line --custom-instructions), use it directly
+        elif isinstance(additional_instructions, str) and additional_instructions.strip():
+            formatted_instructions += "\n\nAdditional instructions:\n" + additional_instructions
+    
+    # Then, always append CUSTOM_INSTRUCTIONS if it's not empty
+    if CUSTOM_INSTRUCTIONS and CUSTOM_INSTRUCTIONS.strip():
+        # Add a separator if we already have some instructions
+        if formatted_instructions:
+            formatted_instructions += "\n\nCustom focus:\n" + CUSTOM_INSTRUCTIONS.strip()
+        else:
+            formatted_instructions += "\n\nAdditional instructions:\n" + CUSTOM_INSTRUCTIONS.strip()
+    
+    # Add all formatted instructions to the prompt
+    if formatted_instructions:
+        outline_prompt += formatted_instructions
     
     # Format the final prompt with topic and num_chapters
     return outline_prompt.format(topic=topic, num_chapters=actual_num_chapters)
 
-def generate_book_outline(model, topic, project_path, num_chapters, additional_instructions=None, base_chapters=BASE_CHAPTER_COUNT):
+def generate_book_outline(model, topic, project_path, num_chapters, outline_instructions=None, 
+                         base_chapters=BASE_CHAPTER_COUNT):
     """Generate a book outline for the given topic."""
-    outline_prompt = generate_book_outline_prompt(topic, num_chapters, additional_instructions, base_chapters)
+    outline_prompt = generate_book_outline_prompt(
+        topic, num_chapters, outline_instructions, base_chapters
+    )
     
     outline = ask_gemini(model, outline_prompt)
     
@@ -286,23 +321,48 @@ def parse_chapters(outline):
     
     return chapters
 
-def elaborate_chapter(model, chapter, project_path, index, delay=CHAPTER_DELAY):
-    """Generate detailed content for a chapter based on its outline."""
+def elaborate_chapter(model, chapter, project_path, index, delay=CHAPTER_DELAY, 
+                     narrative_style=None, pedagogical_approach=None, chapter_instructions=None):
+    """Generate detailed content for a chapter based on its outline, and return the prompt used."""
     chapter_title = chapter["title"]
     chapter_outline = chapter["outline"]
     
-    prompt = PROMPTS["chapter_elaboration"].format(
+    # Get the base prompt
+    prompt_template = PROMPTS["chapter_elaboration"]
+    
+    # Format the base prompt BEFORE applying style/approach
+    # to ensure formatting placeholders are filled
+    formatted_prompt = prompt_template.format(
         chapter_number=index+1,
         chapter_title=chapter_title,
         chapter_outline=chapter_outline
     )
+    
+    # Add chapter-specific instructions if provided
+    if chapter_instructions:
+        # If it's a list of keys from INSTRUCTION_TEMPLATES
+        if isinstance(chapter_instructions, list) and chapter_instructions:
+            instructions_text = []
+            for key in chapter_instructions:
+                if key in INSTRUCTION_TEMPLATES:
+                    instructions_text.append("- " + INSTRUCTION_TEMPLATES[key])
+            
+            if instructions_text:
+                formatted_prompt += "\n\nAdditional chapter instructions:\n" + "\n".join(instructions_text)
+        
+        # If it's a string, use it directly
+        elif isinstance(chapter_instructions, str) and chapter_instructions.strip():
+            formatted_prompt += "\n\nAdditional chapter instructions:\n" + chapter_instructions
+    
+    # Apply narrative style and pedagogical approach if specified
+    final_prompt = apply_style_and_approach(formatted_prompt, narrative_style, pedagogical_approach)
     
     # Add a delay before each API call to avoid rate limiting
     if delay > 0:
         print(f"Waiting {delay} seconds before requesting content for Chapter {index+1}...")
         time.sleep(delay)
     
-    chapter_content = ask_gemini(model, prompt)
+    chapter_content = ask_gemini(model, final_prompt)
     
     # Create chapter filename
     safe_chapter_title = sanitize_filename(chapter_title)
@@ -312,10 +372,17 @@ def elaborate_chapter(model, chapter, project_path, index, delay=CHAPTER_DELAY):
     # Save chapter content
     save_to_file(chapter_content, chapter_path)
     
+    # Also save the prompt used for this chapter for debugging purposes
+    prompt_filename = f"prompt_{index+1}_{safe_chapter_title}.txt"
+    prompt_path = os.path.join(project_path, "chapters", prompt_filename)
+    save_to_file(final_prompt, prompt_path)
+    
     return {
         "title": chapter_title,
         "content": chapter_content,
-        "file": chapter_path
+        "file": chapter_path,
+        "prompt": final_prompt,
+        "prompt_file": prompt_path
     }
 
 def merge_chapters(chapters, topic, project_path, output_folder=None):
@@ -373,37 +440,84 @@ def merge_chapters(chapters, topic, project_path, output_folder=None):
     
     return book_path
 
-def save_metadata(topic, project_path, chapters, outline_prompt=None, additional_instructions=None, num_chapters=None):
+def save_metadata(topic, project_path, chapters, outline_prompt=None, instructions=None, 
+                 num_chapters=None, narrative_style=None, pedagogical_approach=None):
     """Save metadata about the project for future reference."""
     metadata = {
         "topic": topic,
         "created_at": datetime.now().isoformat(),
-        "chapters": [{"title": chapter["title"], "file": os.path.basename(chapter["file"])} for chapter in chapters],
+        # Include title, file, and prompt for each chapter
+        "chapters": [
+            {
+                "title": chapter["title"],
+                "file": os.path.basename(chapter["file"]),
+                "prompt": chapter.get("prompt", "Prompt not captured"),
+                "prompt_file": os.path.basename(chapter.get("prompt_file", ""))
+            }
+            for chapter in chapters
+        ],
         "model": MODEL,
         "temperature": TEMPERATURE,
         "top_p": TOP_P,
         "settings": {
             "num_chapters": num_chapters or NUM_CHAPTERS,
-            "chapter_delay": CHAPTER_DELAY
+            "chapter_delay": CHAPTER_DELAY,
+            "narrative_style": narrative_style,
+            "pedagogical_approach": pedagogical_approach
         }
     }
     
-    # Include additional_instructions if available
-    if additional_instructions:
-        if isinstance(additional_instructions, list):
-            # Convert list of template keys to their actual instructions
+    # Include instructions if available
+    if instructions:
+        if isinstance(instructions, dict):
+            # New format with separate outline and chapter instructions
+            metadata["instructions"] = {
+                "outline": [],
+                "chapter": []
+            }
+            
+            # Process outline instructions
+            if "outline" in instructions and instructions["outline"]:
+                if isinstance(instructions["outline"], list):
+                    outline_instr = []
+                    for key in instructions["outline"]:
+                        if key in INSTRUCTION_TEMPLATES:
+                            outline_instr.append(INSTRUCTION_TEMPLATES[key])
+                    metadata["instructions"]["outline"] = outline_instr
+                elif isinstance(instructions["outline"], str):
+                    metadata["instructions"]["outline"] = instructions["outline"]
+            
+            # Process chapter instructions
+            if "chapter" in instructions and instructions["chapter"]:
+                if isinstance(instructions["chapter"], list):
+                    chapter_instr = []
+                    for key in instructions["chapter"]:
+                        if key in INSTRUCTION_TEMPLATES:
+                            chapter_instr.append(INSTRUCTION_TEMPLATES[key])
+                    metadata["instructions"]["chapter"] = chapter_instr
+                elif isinstance(instructions["chapter"], str):
+                    metadata["instructions"]["chapter"] = instructions["chapter"]
+        
+        elif isinstance(instructions, list):
+            # Legacy format - treat as outline instructions
             instructions_text = []
-            for key in additional_instructions:
+            for key in instructions:
                 if key in INSTRUCTION_TEMPLATES:
                     instructions_text.append(INSTRUCTION_TEMPLATES[key])
-            metadata["additional_instructions"] = instructions_text
-        else:
+            metadata["instructions"] = instructions_text
+        
+        elif isinstance(instructions, str):
             # String instructions
-            metadata["additional_instructions"] = additional_instructions
+            metadata["instructions"] = instructions
     
     # Include the outline prompt if available
     if outline_prompt:
         metadata["outline_prompt"] = outline_prompt
+        
+        # Also save outline prompt to a separate file for easier access
+        outline_prompt_path = os.path.join(project_path, "outline_prompt.txt")
+        save_to_file(outline_prompt, outline_prompt_path)
+        metadata["outline_prompt_file"] = "outline_prompt.txt"
     
     metadata_path = os.path.join(project_path, "metadata.json")
     with open(metadata_path, 'w', encoding='utf-8') as f:
@@ -411,11 +525,13 @@ def save_metadata(topic, project_path, chapters, outline_prompt=None, additional
     
     print(f"Metadata saved to {metadata_path}")
 
-def create_minibook(topic, api_key, num_chapters, chapter_delay=CHAPTER_DELAY, 
-                    output_folder=OUTPUT_FOLDER, add_summary=True, additional_instructions=None, base_chapters=BASE_CHAPTER_COUNT):
+def create_minibook(topic, api_llm_key, num_chapters, chapter_delay=CHAPTER_DELAY, 
+                   output_folder=OUTPUT_FOLDER, add_summary=True, outline_instructions=None, 
+                   chapter_instructions=None, base_chapters=BASE_CHAPTER_COUNT, 
+                   narrative_style=None, pedagogical_approach=None):
     """Main function to create a minibook on the given topic."""
-    if not api_key:
-        raise ValueError("Please provide a Google API key either as an argument or by setting the GOOGLE_API_KEY environment variable.")
+    if not api_llm_key:
+        raise ValueError("Please provide a Google API key (for LLM) either as an argument or by setting the GOOGLE_API_KEY environment variable or in config.py.")
     
     # Handle 'dynamic' chapter count
     if num_chapters == 'dynamic':
@@ -430,7 +546,7 @@ def create_minibook(topic, api_key, num_chapters, chapter_delay=CHAPTER_DELAY,
             actual_num_chapters = base_chapters
     
     # Initialize Gemini model
-    model = setup_genai(api_key)
+    model = setup_genai(api_llm_key)
     
     # Create project folder
     project_path = create_project_folder(topic)
@@ -438,8 +554,13 @@ def create_minibook(topic, api_key, num_chapters, chapter_delay=CHAPTER_DELAY,
     
     # Generate book outline
     print(f"Generating outline for: {topic}")
-    outline_prompt = generate_book_outline_prompt(topic, actual_num_chapters, additional_instructions, base_chapters)
-    outline = generate_book_outline(model, topic, project_path, actual_num_chapters, additional_instructions, base_chapters)
+    outline_prompt = generate_book_outline_prompt(
+        topic, actual_num_chapters, outline_instructions, base_chapters
+    )
+    outline = generate_book_outline(
+        model, topic, project_path, actual_num_chapters, 
+        outline_instructions, base_chapters
+    )
     
     # Parse chapters from outline
     chapters = parse_chapters(outline)
@@ -450,7 +571,10 @@ def create_minibook(topic, api_key, num_chapters, chapter_delay=CHAPTER_DELAY,
     for i, chapter in enumerate(chapters):
         print(f"Elaborating on Chapter {i+1}: {chapter['title']}")
         try:
-            processed_chapter = elaborate_chapter(model, chapter, project_path, i, chapter_delay)
+            processed_chapter = elaborate_chapter(
+                model, chapter, project_path, i, chapter_delay,
+                narrative_style, pedagogical_approach, chapter_instructions
+            )
             processed_chapters.append(processed_chapter)
         except Exception as e:
             print(f"Error processing chapter {i+1}: {str(e)}")
@@ -460,10 +584,19 @@ def create_minibook(topic, api_key, num_chapters, chapter_delay=CHAPTER_DELAY,
             chapter_path = os.path.join(project_path, "chapters", chapter_filename)
             error_content = f"# {chapter['title']}\n\nError generating content: {str(e)}\n\nOutline:\n{chapter['outline']}"
             save_to_file(error_content, chapter_path)
+            
+            # Also create a placeholder for the failed prompt
+            prompt_filename = f"prompt_{i+1}_{safe_chapter_title}.txt" 
+            prompt_path = os.path.join(project_path, "chapters", prompt_filename)
+            error_prompt = f"Error generating prompt: {str(e)}\n\nOutline that would have been used:\n{chapter['outline']}"
+            save_to_file(error_prompt, prompt_path)
+            
             processed_chapters.append({
                 "title": chapter["title"],
                 "content": error_content,
-                "file": chapter_path
+                "file": chapter_path,
+                "prompt": "Error generating prompt due to: " + str(e),
+                "prompt_file": prompt_path
             })
     
     # Merge chapters into complete book
@@ -478,7 +611,11 @@ def create_minibook(topic, api_key, num_chapters, chapter_delay=CHAPTER_DELAY,
         output_path = None
     
     # Save project metadata
-    save_metadata(topic, project_path, processed_chapters, outline_prompt, additional_instructions, actual_num_chapters)
+    save_metadata(
+        topic, project_path, processed_chapters, outline_prompt, 
+        {"outline": outline_instructions, "chapter": chapter_instructions}, 
+        actual_num_chapters, narrative_style, pedagogical_approach
+    )
     
     print(f"\nMinibook creation complete!")
     print(f"Project folder: {project_path}")
@@ -494,11 +631,15 @@ def create_minibook(topic, api_key, num_chapters, chapter_delay=CHAPTER_DELAY,
 # create_minibook(topic, api_key)
 
 def main():
+    # Get all available narrative styles and pedagogical approaches
+    narrative_styles = get_available_styles()
+    pedagogical_approaches = get_available_approaches()
+    
     parser = argparse.ArgumentParser(description='Create a minibook on a specified topic using AI.')
     parser.add_argument('--topic', type=str, default=TOPIC, 
                         help=f'The topic for the minibook (default: "{TOPIC}")')
-    parser.add_argument('--api-key', type=str, default=API_KEY,
-                        help='Google API key (or set GOOGLE_API_KEY environment variable)')
+    parser.add_argument('--api-key', type=str, default=API_LLM_KEY,
+                        help='Google API key for the LLM (or set GOOGLE_API_KEY environment variable)')
     parser.add_argument('--num-chapters', default=NUM_CHAPTERS,
                         help=f'The suggested number of chapters to produce in the outline (default: {NUM_CHAPTERS}). Can be a number or "dynamic"')
     parser.add_argument('--base-chapters', type=int, default=BASE_CHAPTER_COUNT,
@@ -509,25 +650,68 @@ def main():
                         help=f'Folder to store final markdown files (default: {OUTPUT_FOLDER})')
     parser.add_argument('--no-summary', action='store_true',
                         help='Skip generating a summary chapter')
-    parser.add_argument('--add-instructions', type=str, nargs='+', choices=list(INSTRUCTION_TEMPLATES.keys()),
+    parser.add_argument('--outline-instructions', type=str, nargs='+', choices=list(INSTRUCTION_TEMPLATES.keys()),
                         help='Add specific instruction templates to the outline prompt')
+    parser.add_argument('--chapter-instructions', type=str, nargs='+', choices=list(INSTRUCTION_TEMPLATES.keys()),
+                        help='Add specific instruction templates to the chapter prompts')
     parser.add_argument('--custom-instructions', type=str,
                         help='Add custom additional instructions for the outline prompt')
     
+    # Add narrative style argument
+    parser.add_argument('--narrative-style', type=str, default=NARRATIVE_STYLE,
+                        choices=list(narrative_styles.keys()),
+                        help='Narrative style to use throughout the book')
+    
+    # Add pedagogical approach argument
+    parser.add_argument('--pedagogical-approach', type=str, default=PEDAGOGICAL_APPROACH,
+                        choices=list(pedagogical_approaches.keys()),
+                        help='Pedagogical approach to structure the content')
+    
+    # Add argument to list available styles and approaches
+    parser.add_argument('--list-styles', action='store_true',
+                        help='List all available narrative styles and exit')
+    parser.add_argument('--list-approaches', action='store_true',
+                        help='List all available pedagogical approaches and exit')
+    
     args = parser.parse_args()
     
-    # Determine which additional instructions to use
-    additional_instructions = None
-    if args.add_instructions:
-        additional_instructions = args.add_instructions
-    elif args.custom_instructions:
-        additional_instructions = args.custom_instructions
-    else:
-        # Use SELECTED_INSTRUCTIONS first if it's not empty, otherwise use ADDITIONAL_INSTRUCTIONS
-        additional_instructions = SELECTED_INSTRUCTIONS if SELECTED_INSTRUCTIONS else ADDITIONAL_INSTRUCTIONS
+    # Handle listing available styles and approaches
+    if args.list_styles:
+        print("\nAvailable Narrative Styles:")
+        print("---------------------------")
+        for key, style in narrative_styles.items():
+            print(f"{key}: {style['name']} - {style['description']}")
+        sys.exit(0)
     
-    create_minibook(args.topic, args.api_key, args.num_chapters, args.chapter_delay, 
-                    args.output_folder, not args.no_summary, additional_instructions, args.base_chapters)
+    if args.list_approaches:
+        print("\nAvailable Pedagogical Approaches:")
+        print("--------------------------------")
+        for key, approach in pedagogical_approaches.items():
+            print(f"{key}: {approach['name']} - {approach['description']}")
+        sys.exit(0)
+    
+    # Determine which outline instructions to use
+    outline_instructions = None
+    if args.outline_instructions:
+        # Use command-line specified template instructions for outline
+        outline_instructions = args.outline_instructions
+    elif args.custom_instructions:
+        # Use command-line custom instructions directly
+        outline_instructions = args.custom_instructions
+    else:
+        # Use the default SELECTED_OUTLINE_INSTRUCTIONS
+        outline_instructions = SELECTED_OUTLINE_INSTRUCTIONS
+    
+    # Determine which chapter instructions to use
+    chapter_instructions = args.chapter_instructions if args.chapter_instructions else SELECTED_CHAPTER_INSTRUCTIONS
+    
+    # Note: CUSTOM_INSTRUCTIONS will be added in generate_book_outline_prompt regardless
+    
+    create_minibook(
+        args.topic, args.api_key, args.num_chapters, args.chapter_delay, 
+        args.output_folder, not args.no_summary, outline_instructions, chapter_instructions,
+        args.base_chapters, args.narrative_style, args.pedagogical_approach
+    )
 
 if __name__ == "__main__":
     main() 
