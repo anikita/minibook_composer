@@ -14,7 +14,16 @@ PROMPTS = {
     - Include the scope of the minibook in the first chapter
     - Have at least {num_chapters} chapter titles. Number the chapters explicitly, starting from 1.
     - For each chapter, provide 4-6 bullet points highlighting key concepts.
-    - Format the output clearly with markdown. Use latex for formulas.
+    - Format the output clearly with markdown. Use latex for formulas and always assure following these rules:
+        Use $...$ for inline math formulas instead of \(...\)
+        For display/block math, use $$...$$ instead of \[...\]
+        Keep all mathematical notation inside the delimiters
+        Ensure proper spacing around formulas
+        When using special LaTeX commands (like \land, \rightarrow, etc.), keep them inside the dollar signs
+        For subscripts and superscripts, use $K_a$ instead of \(K_a\)
+        For logical symbols, use $\phi$ instead of \(\phi\)
+        For multi-line formulas, each line should have its own set of delimiters
+
 
     The outline should be comprehensive but concise, covering the most important aspects of {topic}.
     """,
@@ -47,6 +56,7 @@ INSTRUCTION_TEMPLATES = {
     "formal_theories": "Add a chapter about the formal theories of the topic.",
     "key_terms": "Add a chapter about the key terms and definitions of the topic.",
     "interdisciplinary": "Add a chapter about the relation of the topic to other topics or disciplines/theories.",
+    "philosophy": "Add a chapter about the philosophical aspects of the topic.",
     "future": "Add a chapter about future developments and trends in this field.",
     "applications": "Add a chapter about practical applications and real-world examples.",
     "controversies": "Add a chapter discussing controversies or debates within this field.",

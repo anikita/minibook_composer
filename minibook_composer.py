@@ -31,31 +31,20 @@ except ImportError:
 # Set your key, set your topic, go!
 
 # User parameters
-TOPIC = "Foundational Leadership Theories: A comparative analysis"
+TOPIC = "Taxonomy: Organizing the Building Blocks of Thought"
 
 # Default instruction templates to use when none are provided by command line
-SELECTED_OUTLINE_INSTRUCTIONS = ["conclusion", "formal_theories"] # Instructions for the outline generation
+SELECTED_OUTLINE_INSTRUCTIONS = ["conclusion", "formal_theories","philosophy"] # Instructions for the outline generation
 SELECTED_CHAPTER_INSTRUCTIONS = ["summary_tables"] # Instructions for chapter generation
 
 # Custom instructions that will ALWAYS be added alongside template instructions (only for outline)
 CUSTOM_INSTRUCTIONS = """ 
-Dedicate a whole chapter on every leadership theory.
  
-Great Man Theory: (Early 19th Century) - Asserts that leaders are born, not made, possessing innate heroic qualities and destined for leadership based on inherent traits often observed in historical figures.
-Trait Theory: (Early 20th Century) - Focuses on identifying specific inherent personal qualities or characteristics (e.g., intelligence, integrity, determination) that differentiate leaders from non-leaders.
-Behavioral Theory: (1940s-1950s) - Shifts focus from who leaders are to what they do; identifies specific, learnable behaviors associated with effective leadership (e.g., task-orientation vs. relationship-orientation).
-Contingency/Situational Theory: (1960s-1970s) - Proposes that effective leadership depends on matching a leader's style to the specific demands of the situation, followers, and environment; no single "best" style exists.
-Leader-Member Exchange (LMX) Theory: (1970s) - Focuses on the unique dyadic (two-way) relationship between a leader and each individual follower, suggesting leaders form different quality relationships (in-groups/out-groups) impacting outcomes.
-Power and Influence Theories: (Various points, prominent mid-20th Century) - Examines leadership based on the sources of a leader's power (e.g., legitimate, reward, expert, referent) and the tactics used to influence followers' attitudes and behaviors.
-Path-Goal Theory: (1970s - a specific Contingency theory) - Posits that leaders motivate followers by clarifying the 'path' to achieving goals and removing obstacles, adapting their style based on follower needs and task characteristics.
-Charismatic Leadership Theory: (1970s) - Centers on leaders who inspire followers through exceptional personal charm, vision, confidence, and conviction, often emerging during times of crisis or change.
-Transactional Leadership Theory: (1970s/1980s) - Describes leadership as an exchange process where leaders clarify expectations and use rewards or corrective actions (punishments) based on follower performance against set standards.
-Transformational Leadership Theory: (1980s) - Focuses on leaders who inspire and motivate followers to transcend self-interest, achieve extraordinary outcomes, and develop their own leadership potential through vision, inspiration, intellectual stimulation, and individualized support.
 """
 
 # Default narrative style and pedagogical approach
 NARRATIVE_STYLE = None  # e.g., "analogies", "character_driven", "problem_solution", "story_arc"
-PEDAGOGICAL_APPROACH = None  # e.g., "scaffolded", "socratic", "project_based", "spiral"
+PEDAGOGICAL_APPROACH = "socratic"  # e.g., "scaffolded", "socratic", "project_based", "spiral"
 
 NUM_CHAPTERS = 'dynamic'  # Can be a number or 'dynamic' to calculate based on instructions
 BASE_CHAPTER_COUNT = 4    # Base number of chapters when using dynamic mode
