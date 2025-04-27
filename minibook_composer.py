@@ -31,23 +31,23 @@ except ImportError:
 # Set your key, set your topic, go!
 
 # User parameters
-TOPIC = "Taxonomy: Organizing the Building Blocks of Thought"
+TOPIC = "Existentialism in the Digital Age"
 
 # Default instruction templates to use when none are provided by command line
-SELECTED_OUTLINE_INSTRUCTIONS = ["conclusion", "formal_theories","philosophy"] # Instructions for the outline generation
-SELECTED_CHAPTER_INSTRUCTIONS = ["summary_tables"] # Instructions for chapter generation
+SELECTED_OUTLINE_INSTRUCTIONS = ["conclusion", "formal_theories",] # Instructions for the outline generation
+SELECTED_CHAPTER_INSTRUCTIONS = ["summary_tables","chapter_key_takeaways"] # Instructions for chapter generation
 
 # Custom instructions that will ALWAYS be added alongside template instructions (only for outline)
 CUSTOM_INSTRUCTIONS = """ 
- 
+
 """
 
 # Default narrative style and pedagogical approach
-NARRATIVE_STYLE = None  # e.g., "analogies", "character_driven", "problem_solution", "story_arc"
-PEDAGOGICAL_APPROACH = "socratic"  # e.g., "scaffolded", "socratic", "project_based", "spiral"
+NARRATIVE_STYLE = "harari_style" # e.g., "harari_style", "analogies", "character_driven", "problem_solution", "story_arc"
+PEDAGOGICAL_APPROACH = "socratic" # e.g., "scaffolded", "socratic", "project_based", "spiral"
 
 NUM_CHAPTERS = 'dynamic'  # Can be a number or 'dynamic' to calculate based on instructions
-BASE_CHAPTER_COUNT = 4    # Base number of chapters when using dynamic mode
+BASE_CHAPTER_COUNT = 5    # Base number of chapters when using dynamic mode
 CHAPTER_DELAY = 1  # Default wait time in seconds between chapter requests
 
 def setup_genai(api_llm_key):

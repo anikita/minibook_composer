@@ -260,7 +260,7 @@ This will create a project folder containing a complete minibook on sustainable 
 
 ### Markdown to EPUB Converter
 
-The repository includes a standalone utility script (`md_to_epub_converter.py`) that can convert Markdown files to EPUB format. This is useful for creating e-reader friendly versions of your minibooks.
+The repository includes a standalone utility script (`util_md_to_epub_converter.py`) that can convert Markdown files to EPUB format. This is useful for creating e-reader friendly versions of your minibooks.
 
 #### Requirements
 - Python 3.7+
@@ -282,21 +282,76 @@ If `config.py` is not found, the script will use default directories.
 
 Convert all markdown files in a directory:
 ```bash
-python md_to_epub_converter.py /path/to/markdown/files --output-dir /path/to/output
+python util_md_to_epub_converter.py /path/to/markdown/files --output-dir /path/to/output
 ```
 
 Convert a single markdown file:
 ```bash
-python md_to_epub_converter.py --single-file /path/to/file.md --title "My Custom Title"
+python util_md_to_epub_converter.py --single-file /path/to/file.md --title "My Custom Title"
 ```
 
 Additional options:
 ```bash
 # Scan directory recursively
-python md_to_epub_converter.py /path/to/markdown/files --recursive
+python util_md_to_epub_converter.py /path/to/markdown/files --recursive
 
 # Specify a custom output directory
-python md_to_epub_converter.py /path/to/markdown/files --output-dir /path/to/output
+python util_md_to_epub_converter.py /path/to/markdown/files --output-dir /path/to/output
 ```
 
-The converter automatically adds a table of contents to make navigation easier on e-readers. 
+The converter automatically adds a table of contents to make navigation easier on e-readers.
+
+### Text-to-Speech Utility
+
+The Text-to-Speech utility (`util_tts.py`) converts markdown or plain text files to audio format using Google's Text-to-Speech API.
+
+#### Requirements
+- Python 3.7+
+- Google Cloud Text-to-Speech API key
+- Additional Python packages: `google-cloud-texttospeech`, `pydub` (for WAV to MP3 conversion)
+
+#### Features
+- Converts markdown or plain text to high-quality speech
+- Preprocesses text to improve pronunciation and pacing
+- Supports SSML (Speech Synthesis Markup Language) for enhanced audio quality
+- Formats text for optimal TTS processing (handles lists, tables, etc.)
+- Handles long text with automatic chunking
+- Multiple voice options with customizable speaking rate and pitch
+- Saves both processed text and audio output
+
+#### Usage
+
+Basic usage to convert a text file to speech:
+```bash
+python util_tts.py --input-file /path/to/file.md --voice en-US-Neural2-D
+```
+
+Customize voice parameters:
+```bash
+python util_tts.py --input-file /path/to/file.md --voice en-US-Neural2-F --rate 0.9 --pitch 2
+```
+
+Specify output options:
+```bash
+python util_tts.py --input-file /path/to/file.md --output-filename custom_name.mp3 --save-text
+```
+
+### Minibook Scanner Utility
+
+The Minibook Scanner utility (`util_scan_minibooks.py`) helps organize your generated minibooks by scanning for completed books and copying them to your output folder.
+
+#### Features
+- Scans project folders for completed minibooks
+- Identifies folders marked with '+' prefix (indicating completed projects)
+- Copies final markdown files to the output directory
+- Renames files to remove the "minibook_" prefix and adds a "+ " prefix
+- Preserves original files in the project folders
+
+#### Usage
+
+Simply run the utility to scan for minibooks and copy them to the output folder:
+```bash
+python util_scan_minibooks.py
+```
+
+The utility uses the `PROJECT_FOLDER` and `OUTPUT_FOLDER` settings from your `config.py`. 

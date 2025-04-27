@@ -1,0 +1,168 @@
+[
+  {
+    "description": "Remove heading markers",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "#+\\s+",
+    "replacement": ""
+  },
+  {
+    "description": "Handle GitHub-style indented bullet points with bold headings and colon",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "^(\\s*)\\*\\s+\\*\\*([^:]*?):\\*\\*",
+    "flags": "MULTILINE",
+    "replacement": "$1• $2:"
+  },
+  {
+    "description": "Handle GitHub-style indented bullet points with bold text",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "^(\\s*)\\*\\s+\\*\\*([^\\*]*)\\*\\*",
+    "flags": "MULTILINE",
+    "replacement": "$1• $2"
+  },
+  {
+    "description": "Remove bold markers with double asterisks",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "\\*\\*(.*?)\\*\\*",
+    "replacement": "$1"
+  },
+  {
+    "description": "Remove italic markers with single asterisks",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "\\*(.*?)\\*",
+    "replacement": "$1"
+  },
+  {
+    "description": "Remove bold markers with double underscores",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "__(.*?)__",
+    "replacement": "$1"
+  },
+  {
+    "description": "Remove italic markers with single underscores",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "_(.*?)_",
+    "replacement": "$1"
+  },
+  {
+    "description": "Convert links to just the text",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "\\[(.*?)\\]\\(.*?\\)",
+    "replacement": "$1"
+  },
+  {
+    "description": "Remove code blocks",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "```.*?```",
+    "flags": "DOTALL",
+    "replacement": ""
+  },
+  {
+    "description": "Remove inline code markers",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "`(.*?)`",
+    "replacement": "$1"
+  },
+  {
+    "description": "Replace markdown tables with placeholder",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "^\\|.+\\|$\\n^\\|[-:| ]+\\|$(\\n^\\|.+\\|$)*",
+    "flags": "MULTILINE",
+    "replacement": "\n[Table excluded from speech]\n"
+  },
+  {
+    "description": "Replace simple tables with placeholder",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "(^\\|.+\\|$\\n){2,}",
+    "flags": "MULTILINE",
+    "replacement": "\n[Table excluded from speech]\n"
+  },
+  {
+    "description": "Convert standard bullet points with dash",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "^\\s*[-]\\s+",
+    "flags": "MULTILINE",
+    "replacement": "• "
+  },
+  {
+    "description": "Convert remaining asterisk bullet points",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "^\\s*[*]\\s+",
+    "flags": "MULTILINE",
+    "replacement": "• "
+  },
+  {
+    "description": "Convert plus-sign bullet points",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "^\\s*[+]\\s+",
+    "flags": "MULTILINE",
+    "replacement": "• "
+  },
+  {
+    "description": "Format numbered lists",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "^\\s*(\\d+)\\.\\s+",
+    "flags": "MULTILINE",
+    "replacement": "$1. "
+  },
+  {
+    "description": "Remove horizontal rules",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "^\\s*[-*_]{3,}\\s*$",
+    "flags": "MULTILINE",
+    "replacement": "\n"
+  },
+  {
+    "description": "Remove blockquote markers",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "^\\s*>\\s+",
+    "flags": "MULTILINE",
+    "replacement": ""
+  },
+  {
+    "description": "Add appropriate pauses for paragraph breaks",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "\\n\\s*\\n",
+    "replacement": "\n\n"
+  },
+  {
+    "description": "Process LaTeX formulas",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "\\$(.*?)\\$",
+    "replacement": "[formula: $1]"
+  },
+  {
+    "description": "Process inline LaTeX formulas",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "\\$(.*?)\\$",
+    "replacement": "[formula: $1]"
+  },
+  {
+    "description": "Process display LaTeX formulas",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "\\$\\$(.*?)\\$\\$",
+    "flags": "DOTALL",
+    "replacement": "[formula: $1]"
+  }
+] 

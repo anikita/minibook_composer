@@ -1,0 +1,11 @@
+# Basic dependencies
+requests>=2.28.0
+argparse>=1.4.0
+
+# Google Cloud dependencies
+google-cloud-texttospeech>=2.16.2
+google-cloud-storage>=2.10.0
+
+# Optional dependencies
+pydub>=0.25.1  # For audio processing (if needed)
+markdown>=3.4.3  # For better markdown parsing 

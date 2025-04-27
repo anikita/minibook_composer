@@ -1,0 +1,58 @@
+[
+  {
+    "description": "Add long pause after colons",
+    "enabled": true,
+    "type": "replace",
+    "pattern": ":",
+    "replacement": ":<break time=\"750ms\"/>"
+  },
+  {
+    "description": "Add pause after semicolons",
+    "enabled": false,
+    "type": "replace",
+    "pattern": ";",
+    "replacement": ";<break time=\"500ms\"/>"
+  },
+  {
+    "description": "Add short pause after commas",
+    "enabled": true,
+    "type": "replace",
+    "pattern": ",",
+    "replacement": ",<break time=\"300ms\"/>"
+  },
+  {
+    "description": "Add paragraph breaks for double newlines",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "\\n\\s*\\n",
+    "replacement": "\n<break time=\"1s\"/>\n"
+  },
+  {
+    "description": "Process bullet points for better speech",
+    "enabled": true,
+    "type": "regex",
+    "pattern": "•\\s+",
+    "replacement": "• <break time=\"300ms\"/> "
+  },
+  {
+    "description": "Add slight emphasis to asterisk-marked words (disabled initially)",
+    "enabled": false,
+    "type": "regex",
+    "pattern": "\\*([^\\*]+)\\*",
+    "replacement": "<emphasis level=\"moderate\">$1</emphasis>"
+  },
+  {
+    "description": "Add slight emphasis to underscore-marked words",
+    "enabled": false,
+    "type": "regex",
+    "pattern": "_([^_]+)_",
+    "replacement": "<emphasis level=\"moderate\">$1</emphasis>"
+  },
+  {
+    "description": "Set the pace slower for quoted text (disabled due to syntax issues)",
+    "enabled": false,
+    "type": "regex",
+    "pattern": "\"([^\"]+)\"",
+    "replacement": "<prosody rate=\"slow\">\"$1\"</prosody>"
+  }
+] 

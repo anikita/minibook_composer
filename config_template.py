@@ -8,11 +8,11 @@ INSTRUCTIONS:
 """
 import os
 
-# API Configuration
+# API Configuration, LLM and TTS Keys
 API_LLM_KEY = os.environ.get('GOOGLE_API_KEY', '')  # Set your Google AI Studio (or other LLM) API key here or use GOOGLE_API_KEY env var
 API_TTS_KEY = os.environ.get('GOOGLE_TTS_API_KEY', API_LLM_KEY)  # Set your Google Cloud TTS API key here or use GOOGLE_TTS_API_KEY env var. Falls back to API_LLM_KEY if only one key is used.
 
-# Path Configuration
+# Additional Path for Exporting the full book only (e.g on your Google Drive)
 # Update this to your preferred output location
 OUTPUT_FOLDER = os.path.join(os.path.expanduser("~"), "Documents/Minibooks")
 

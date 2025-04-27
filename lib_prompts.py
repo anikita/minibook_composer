@@ -50,7 +50,8 @@ PROMPTS = {
 # Additional instruction templates that can be combined with base prompts
 INSTRUCTION_TEMPLATES = {
     "history": "Add a chapter about the history of the topic.",
-    "key_takeaways": "Include in the first chapter the key takeaways of the topic, right after the introduction.",
+    "intro_key_takeaways": "Include in the first chapter the key takeaways of the topic, right after the introduction.",
+    "chapter_key_takeaways": "Include at the end of each chapter the key takeaways in a bullet point list.",
     "summary_tables": "Try to use tables to summarize and compare key concepts.",
     "conclusion": "Add as a last chapter about the conclusion of the topic.",
     "formal_theories": "Add a chapter about the formal theories of the topic.",
@@ -137,6 +138,33 @@ NARRATIVE_STYLES = {
         Structure the entire book as a story with a clear beginning (introducing the challenge), 
         middle (exploring complications and attempts at solutions), and end (resolution and lessons learned).
         Include elements like a protagonist (which could be the reader), challenges, turning points, and resolution.
+        """
+    },
+    "harari_style": {
+        "name": "Harari-Style",
+        "description": "Accessible, engaging, and thought-provoking narrative style inspired by Yuval Noah Harari",
+        "prompt": """
+        Write in a style that combines accessibility, engagement, and thought-provoking analysis:
+        
+        Accessibility:
+        - Use clear, straightforward language and explain technical terms when needed
+        - Employ relatable analogies and metaphors from everyday life
+        - Focus on major trends and patterns rather than minor details
+        - Use inclusive language with collective pronouns ("we," "our") where appropriate
+        
+        Engagement:
+        - Structure content as a compelling narrative or unfolding process
+        - Begin sections with intriguing questions to spark curiosity
+        - Draw unexpected connections between seemingly unrelated concepts
+        - Include vivid examples and concrete illustrations of abstract ideas
+        
+        Thought-Provoking:
+        - Gently challenge common assumptions and conventional wisdom
+        - Highlight ironies, paradoxes, and unexpected outcomes
+        - Consider long-term implications and future consequences
+        - Raise fundamental ethical and existential questions where relevant
+        
+        Maintain a balance between accessibility and depth, using clear language while exploring complex ideas.
         """
     }
 }
